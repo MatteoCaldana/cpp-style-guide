@@ -13,7 +13,16 @@ It is heavily inspired by [Google Coding style for C++ code](https://google.gith
 
 ## Static analysis
 - Use `cpplint.py` to detect style errors. It is not perfect, and has both false positives and false negatives.
-- Use `clang-tidy` and `Cppcheck` to statically analyze the code.
+- Use `clang-tidy` to statically analyze the code:
+```bash
+cmake <options...> -DCMAKE_EXPORT_COMPILE_COMMANDS=ON <path>
+run-clang-tidy -checks='google*,readability*,performance*,mpi*,cppcoreguidelines*,bugprone*,modernize-use-using,modernize-use-emplace,modernize-make-shared,modernize-make-unique' -use-color
+```
+- Use [Cppcheck](https://github.com/danmar/cppcheck) to statically analyze the code:
+```bash
+cmake <options...> -DCMAKE_EXPORT_COMPILE_COMMANDS=ON <path> 
+cppcheck --project=compile_commands.json --check-level=exhaustive
+```
 
 
 ## File structure
