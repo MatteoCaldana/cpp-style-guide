@@ -42,15 +42,24 @@ It is heavily inspired by [Google Coding style for C++ code](https://google.gith
 
 ## Static analysis
 - Use `cpplint.py` to detect style errors. It is not perfect, and has both false positives and false negatives.
-- Use `clang-tidy` and `Cppcheck` to statically analyze the code.
+- Use `clang-tidy` to statically analyze the code:
+```bash
+cmake <options...> -DCMAKE_EXPORT_COMPILE_COMMANDS=ON <path>
+run-clang-tidy -checks='google*,readability*,performance*,mpi*,cppcoreguidelines*,bugprone*,modernize-use-using,modernize-use-emplace,modernize-make-shared,modernize-make-unique' -use-color
+```
+- Use [Cppcheck](https://github.com/danmar/cppcheck) to statically analyze the code:
+```bash
+cmake <options...> -DCMAKE_EXPORT_COMPILE_COMMANDS=ON <path> 
+cppcheck --project=compile_commands.json --check-level=exhaustive --inconclusive --enable=all
+```
 
 
 ## File structure
-In general, every header file (`.hpp`) should have an associated source file (`.cpp`).Header files should be self-contained (compile on their own). 
+In general, every header file (`.hpp`) should have an associated source file (`.cpp`). Header files should be self-contained (compile on their own). 
 - Filenames should be all lowercase and can include underscores (`_`) 
 
 ### Define guard
-All header files should have #define guards to prevent multiple inclusion. The format of the symbol name should be `<PROJECT>_<PATH>_<FILE>_H_`. To guarantee uniqueness, they should be based on the full path in a project's source tree. For example, the file `foo/src/bar/baz.h` in project foo should have the following guard:
+All header files should have `#define` guards to prevent multiple inclusion. The format of the symbol name should be `<PROJECT>_<PATH>_<FILE>_H_`. To guarantee uniqueness, they should be based on the full path in a project's source tree. For example, the file `foo/src/bar/baz.h` in project foo should have the following guard:
 ```cpp
 #ifndef FOO_BAR_BAZ_H_
 #define FOO_BAR_BAZ_H_
@@ -66,7 +75,7 @@ Include headers in the following order: Related header, C system headers, C++ st
 **IMPORTANT:** If a source or header file refers to a symbol defined elsewhere, the file should directly include a header file which properly intends to provide a declaration or definition of that symbol. It should not include header files for any other reason. **Do not rely on transitive inclusions.**
 
 ## Namespaces
-With few exceptions, place code in a namespace. Namespaces should have unique names based on the project name, and possibly its path. Do not use using-directives (e.g., using namespace foo). 
+With few exceptions, place code in a namespace. Namespaces should have unique names based on the project name, and possibly its path. Do not use using-directives (e.g., `using namespace foo`). 
 - You may not use a using-directive to make all names from a namespace available.
 ```cpp
 // FORBIDDEN -- This pollutes the namespace.
@@ -89,7 +98,7 @@ v.push_back(1);
 v.push_back(2);
 std::vector<int> v = {1, 2};  // GOOD -- v starts initialized.
 ```
-- Variables needed for if, while and for statements should normally be declared within those statements
+- Variables needed for `if`, `while` and `for` statements should normally be declared within those statements
 ```cpp
 while (const auto p = text.find('/', str)) {
   str = p + 1;
@@ -99,35 +108,47 @@ while (const auto p = text.find('/', str)) {
 ```cpp
 // INEFFICIENT implementation:
 for (int i = 0; i < 1000000; ++i) {
-  Foo f;  // My ctor and dtor get called 1000000 times each.
-  f.DoSomething(i);
+  std::vector<double> vector(10);  // ctor and dtor get called 1000000 times each.
+  for(int j = 0; j < 10; ++j) {
+    vector[j] = //...
+  }
+  // do stuff with vector
+}
+
+// BETTER implementation:
+std::vector<double> vector(10);
+for (int i = 0; i < 1000000; ++i) {
+  for(int j = 0; j < 10; ++j) {
+    vector[j] = //...
+  }
+  // do stuff with vector
 }
 ```
 ### Global Variables
 Objects with static storage duration are forbidden unless they are trivially destructible.
 Note that fundamental types and variables marked with `constexpr` are trivially destructible.
 ```cpp
-const int kNum = 10;  // Allowed
+const int k_num = 10;  // Allowed
 
 struct X { int n; };
-const X kX[] = {{1}, {2}, {3}};  // Allowed
+const X k_x[] = {{1}, {2}, {3}};  // Allowed
 
 void foo() {
-  static const char* const kMessages[] = {"hello", "world"};  // Allowed
+  static const char* const k_messages[] = {"hello", "world"};  // Allowed
 }
 
-constexpr std::array<int, 3> kArray = {1, 2, 3}; // Allowed
+constexpr std::array<int, 3> k_array = {1, 2, 3}; // Allowed
 
 // BAD: non-trivial destructor
-const std::string kFoo = "foo";
+const std::string k_foo = "foo";
 
 void bar() {
   // BAD: non-trivial destructor.
-  static std::map<int, int> kData = {{1, 0}, {2, 0}, {3, 0}};
+  static std::map<int, int> k_data = {{1, 0}, {2, 0}, {3, 0}};
 }
 ```
 #### Common patterns
-- Global strings: if you require a named global or static string constant, consider using a `constexpr` variable of string_view, character array, or character pointer, pointing to a string literal.
+- Global strings: if you require a named global or static string constant, consider using a `constexpr` variable of `std::string_view` or character array `char k_str[]`.
 - Maps, sets, and other dynamic containers: if you require a static, fixed collection, such as a set to search against or a lookup table, you **cannot use** the dynamic containers from the standard library as a static variable, since they have non-trivial destructors. Instead, consider a simple array of trivial types, e.g., an array of arrays of ints (for a "map from int to int")
 
 ## Classes
@@ -143,12 +164,12 @@ Classes are the fundamental unit of code in C++. Naturally, we use them extensiv
   -  Destructor
   -  All other functions (static and non-static member functions, and friend functions)
   -  All other data members (static and non-static)
+- Do not define implicit conversions. Use the explicit keyword for conversion operators.
 
 
 ### Struct
-- Do not define implicit conversions. Use the explicit keyword for conversion operators.
 - Use a `struct` only for passive objects that carry data; everything else is a `class`.
-- Prefer to use a `struct` instead of a pair or a tuple whenever the elements can have meaningful names. **Caveat:** prefer a tuple if you heavily rely on comparing as swapping elements in a list (see [C++ Tuple vs Struct](https://stackoverflow.com/questions/5852261/c-tuple-vs-struct)). 
+- Prefer to use a `struct` instead of a pair or a tuple whenever the elements can have meaningful names. **Caveat:** prefer a tuple if you heavily rely on comparing and swapping elements in a list (see [C++ Tuple vs Struct](https://stackoverflow.com/questions/5852261/c-tuple-vs-struct)). 
 
 ### Inheritance
 - Composition is often more appropriate than inheritance. When using inheritance, make it public. Try to restrict use of inheritance to the "is-a" case.
@@ -162,7 +183,7 @@ Classes are the fundamental unit of code in C++. Naturally, we use them extensiv
 - Prefer to define non-modifying binary operators as non-member functions. If a binary operator is defined as a class member, implicit conversions will apply to the right-hand argument, but not the left-hand one. It will confuse your users if a + b compiles but b + a doesn't.
 - Do not overload `&&`, `||`, `,` (comma), or unary `&`. Do not overload `operator""`, i.e., do not introduce user-defined literals.
 - Don't go out of your way to avoid defining operator overloads. For example, prefer to define `==`, `=`, and `<<`, rather than `Equals()`, `CopyFrom()`, and `PrintTo()`.
-- See (cppreference)[https://en.cppreference.com/w/cpp/language/operators] for more details
+- See [cppreference](https://en.cppreference.com/w/cpp/language/operators) for more details
 
 ### Friends
 We allow use of friend classes and functions, within reason. Friends should usually be defined in the same file so that the reader does not have to look in another file to find uses of the private members of a class. A common use of `friend` is to have a `FooBuilder` class be a friend of Foo so that it can construct the inner state of Foo correctly, without exposing this state to the world. In some cases it may be useful to make a unittest class a friend of the class it tests.
@@ -175,7 +196,7 @@ Even if C++ is Object-Oriented, do not be afraid of using free functions.
     - Non-optional output and input/output parameters should usually be references
 - When ordering function parameters, put all input-only parameters before any output parameters. 
 - Avoid defining functions that require a `const` reference parameter to outlive the call, because `const` reference parameters bind to temporaries. 
-- Prefer using return values over output parameters: they improve readability, and often provide the same or better performance (see (RVO)[https://en.cppreference.com/w/cpp/language/copy_elision]).
+- Prefer using return values over output parameters: they improve readability, and often provide the same or better performance (see [RVO](https://en.cppreference.com/w/cpp/language/copy_elision)).
 - Prefer placing functions in a namespace. Use completely global functions rarely. 
 - **Do not** use a class simply to group static members. Static methods of a class should generally be closely related to instances of the class or the class's static data.
 - Define functions `inline` only when they are small, say, 10 lines or fewer.
@@ -188,7 +209,7 @@ auto add(T t, U u) -> decltype(t + u);
 ```
 
 ## Exceptions
-We do not use C++ exceptions.
+We do not use C++ exceptions. It pollutes the control flow.
 
 ## Casting
 Use C++-style casts like `static_cast<float>(double_value)`, or brace initialization for conversion of arithmetic types like `int64_t y = int64_t{1} << 42`. Do not use cast formats like `(int)x` unless the cast is to `void`. You may use cast formats like `T(x)` only when `T` is a class type.
@@ -197,16 +218,17 @@ Use C++-style casts like `static_cast<float>(double_value)`, or brace initializa
 It is often difficult to choose among the many built-in C++ integer types. Keep in mind that implicit casting from one type to another is **expensive**.
 - When working with std containers use `size_t` for all the indexes
 - If a program needs an integer type of a different size, use an exact-width integer type from `<cstdint>`, such as `int16_t`.
-- Try not to mix signedness
+- Try as much as possible not to mix signedness
 
 ## Macros
-Avoid defining macros, especially in headers; prefer `inline` functions, `enums`, and `constexpr` variables. 
+**Avoid as much as possible defining macros**, especially in headers; prefer `inline` functions, `enums`, and `constexpr` variables. 
 
 ## Naming conventions
 
 ### Types
-- Classes, aliases of aggregate types and enums should use `CamelCase`.
-- Aliases of basic types should use `snake_case` with a trailing `_t`.
+- Classes, aliases of aggregate types and enums should use `PascalCase`.
+- Aliases of fundamental types should use `snake_case` with a trailing `_t`.
+- Functions and methods should use `camelCase` (TODO: evaluate this choice)
 - Everything else should use `snake_case`.
 
 Examples:
@@ -222,7 +244,7 @@ using real_t = float;
 ### Variable prefixes
 - Private class attributes should have a prefix `m_`
 - Static class attributes should have a prefix `s_`
-- `constexpr` variables should have a prefix `k_`
+- `constexpr` and `const` integral variables should have a prefix `k_`
 
 ## Control structures
 Always brace controlled statements, even a single-line consequent of `if` or `for`.
@@ -243,12 +265,12 @@ for (...; ...; ...) {
 }
 ```
 ### Switch
-- If an `if else` has more than one branch thing to using a `switch`
+- If an `if else` has more than one branch think to use a `switch`
 - If not conditional on an enumerated value, `switch` statements should always have a default case
 
 ## Pointers
 - Prefer to have single, fixed owners for dynamically allocated objects. Prefer to transfer ownership with smart pointers. That is do not use the keyword `new`, 
-- Use `nullptr` for pointers and not `NULL` or `0`
+- Use `nullptr` for pointers and **not** `NULL` or `0`
 - When testing a pointer, use `(!my_ptr)` or `(my_ptr)`; don’t use `my_ptr != nullptr` or `my_ptr == nullptr`.
 - Do not compare `x == true` or `x == false`. Use `(x)` or `(!x)`
 
@@ -271,12 +293,3 @@ if (!rv) {
 rv = foo->call2();
 return rv;
 ```
-
-
-
-
-TODO: 
-test these
-in cpp lint find thing not passed by reference
-in cpp lint find new and delete
-

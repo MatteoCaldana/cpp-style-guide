@@ -313,6 +313,7 @@ _ERROR_CATEGORIES = [
     'readability/utf8',
     'runtime/allocation',
     'runtime/arrays',
+    'runtime/pass_by_copy',
     'runtime/casting',
     'runtime/explicit',
     'runtime/int',
@@ -6320,7 +6321,7 @@ def CheckNoDynamicStoreAllocation(filename, clean_lines, linenum, error):
   new_or_delete = re.match(r'^(.*)(\b(new|delete)\b)(.*)$', line)
   if not new_or_delete: return
 
-  error(filename, linenum, 'runtime/allocation', 1,
+  error(filename, linenum, 'runtime/allocation', 5,
             (f'"You should avoid dynamic memory allocation: {line}'))
   
 def CheckNoParameterCopy(filename, clean_lines, linenum, error):
@@ -6339,7 +6340,7 @@ def CheckNoParameterCopy(filename, clean_lines, linenum, error):
         if re.match(r"int|float|double|bool|char|int32|uint32|int64|uint64|long", elided_type):
           continue
         if elided_type.find("&") == -1:
-          error(filename, -1, 'runtime/', 1, f'You may want to pass {args_elided[i]} by const reference in {match[0]}')
+          error(filename, -1, 'runtime/pass_by_copy', 1, f'You may want to pass {args_elided[i]} by const reference in {match[0]}')
   
 
 def ProcessLine(filename, file_extension, clean_lines, line,
